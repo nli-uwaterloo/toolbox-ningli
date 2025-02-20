@@ -1,6 +1,8 @@
 import fitz  # PyMuPDF
 import re
 import os
+from datetime import datetime
+
 def extract_text_from_pdf(dir, fname, invoice_data):
     """Extracts text from all pages of a given PDF file."""
     olddir = os.getcwd()
@@ -45,7 +47,8 @@ def extract_invoice_details(text, invoice_data):
                 or match is None
                 or isinstance(match, list)
                 or isinstance(match, int)
-                or isinstance(match, float)):
+                or isinstance(match, float)
+                or isinstance(match, datetime)):
             invoice_data[key] = match
         else:
             invoice_data[key] = match.group(1).strip()
@@ -68,6 +71,23 @@ def extract_invoice_details(text, invoice_data):
     dateout = find_nth_date_between(text, start_keyword, 2)
     if dateout:
         invoice_data["Date Out"] = dateout
+
+    # Resolve Date issue
+    if isinstance(invoice_data["Invoice Date"], str):
+        invoice_data["Invoice Date"] = datetime.strptime(invoice_data["Invoice Date"], "%m/%d/%y")
+    if isinstance(invoice_data["Date Out"], str):
+        invoice_data["Date Out"] = datetime.strptime(invoice_data["Date Out"], "%m/%d/%y")
+
+    if invoice_data["Billing Start Date"] is None:
+        invoice_data["Billing Start Date"] = invoice_data["Date Out"]
+    elif isinstance(invoice_data["Billing Start Date"], str):
+        invoice_data["Billing Start Date"] = datetime.strptime(invoice_data["Billing Start Date"],"%m/%d/%y")
+
+    if invoice_data["Billing End Date"] is None:
+        invoice_data["Billing End Date"] = invoice_data["Date Out"]
+    elif isinstance(invoice_data["Billing End Date"], str):
+        invoice_data["Billing End Date"] = datetime.strptime(invoice_data["Billing End Date"],"%m/%d/%y")
+
     i = 0
 
 def find_nth_date_between(text, start_keyword, n):
@@ -148,10 +168,10 @@ def extract_sales_misc_items(text, invoice_data):
 
     # Regex pattern to match the required fields
     pattern = re.compile(
-        r"(\d+)\s+([A-Z\s\/\d-]+)\s+\[.*?\]\s+([\d,]+\.\d+)\s+([A-Z]+)\s+([\d,]+\.\d+)",
+        r"(\d+)\s+([A-Z\s\/\d-]+)(?:\s+\[.*?\])?\s+([\d,]+\.\d+)\s+([A-Z]+)\s+([\d,]+\.\d+)",
         re.IGNORECASE
     )
-
+    # (\d+)\s+([A-Z\s\/\d-]+)\s+\[.*?\]\s+([\d,]+\.\d+)\s+([A-Z]+)\s+([\d,]+\.\d+)
     matches = pattern.findall(text)
 
     for match in matches:
@@ -162,14 +182,7 @@ def extract_sales_misc_items(text, invoice_data):
             "Unit of Measure": match[3].strip(),
             "Extended Amt": float(match[4].replace(",", ""))
         })
-
-    #return sales_misc_items
     invoice_data["Sales/Miscellaneous Items"] = sales_misc_items
-    for i in sales_misc_items:
-        if i['Item'] == 'ENVIRONMENTAL SERVICE CHARGE':
-            invoice_data['Environmental Service Amount'] = i['Extended Amt']
-        if i['Item'] == 'DIESEL FUEL':
-            invoice_data['Fuel Amount'] += i['Extended Amt']
 
 def extract_costs(text, invoice_data):
     """Extracts subtotal, tax, and total amounts."""
@@ -184,6 +197,8 @@ def extract_costs(text, invoice_data):
         if invoice_data[key]:
             f = invoice_data[key].group(1).replace(",", "")
             invoice_data[key] = float(invoice_data[key].group(1).replace(",", ""))
+        else:
+            invoice_data[key] = 0.0
 
 
 def extract_project_name(text, invoice_data):

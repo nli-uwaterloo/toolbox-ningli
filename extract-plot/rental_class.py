@@ -2,6 +2,7 @@ import pdfplumber
 import os
 import pandas as pd
 import re
+from datetime import datetime
 
 class InvoiceGroup:
 
@@ -40,7 +41,8 @@ class Invoice:
         first day of rental
 
     subtotal : float
-        rental subtotal?
+        agreement subtotal including rental and Sales/Misc
+
     tax : float
         tax
 
@@ -52,6 +54,12 @@ class Invoice:
 
     fuel : float
         total fuel charge including all types
+
+    pickup_dropoff : total
+        total pickup and dropoff charge
+
+    sales_misc subtotal : float
+        subtotal for environmental service, fuel, pickup/dropoff
 
     project : str
     date_out : str
@@ -71,6 +79,8 @@ class Invoice:
         self.total = 0
         self.service = 0
         self.fuel = 0
+        self.environmental_service = 0
+        self.pickup_dropoff = 0
         self.invoice_group = ""
         self.invoice_group_num = ""
         self.project = "SGI"
@@ -91,8 +101,14 @@ class Invoice:
     def setTotal(self, v):
         self.total = v
 
-    def setFuel(self, v):
-        self.fuel = v
+    def addFuel(self, v):
+        self.fuel += v
+
+    def setEnvironmentalService(self, v):
+        self.environmental_service = v
+
+    def addPickupDropff(self, v):
+        self.pickup_dropoff += v
 
     def setInvoiceGroup(self, v):
         self.invoice_group = v
@@ -102,6 +118,7 @@ class Invoice:
 
     def addEquipment(self, k, v):
         self.equipmentMap[k] = v
+
 class Equipment:
     """
     id : str
@@ -142,12 +159,14 @@ class Equipment:
         self.four_week_rate = 0.0
         self.amount = 0.00 # amount charged
         self.invoiceMap = {}
-        self.dateout = ""
+        self.dateout = datetime.strptime("01/01/70","%m/%d/%y")
         self.costMap = {} # key: invoice #, val: rental cost for each invoice
+        self.invoice_group = ""
+        self.type = "" # short name
 
         # calculated
-        self.first_date = ""
-        self.last_date = ""
+        self.first_date = datetime.strptime("01/01/70","%m/%d/%y")
+        self.last_date = datetime.strptime("01/01/70","%m/%d/%y")
 
     # eg. EXCAVATOR 19000# REDUCED TAIL SWING
     def setName(self, v):
@@ -189,31 +208,29 @@ class Equipment:
     def addCost(self, v):
         self.amount += v
 
-class ServiceCharge:
-    """
-    total : float
-        total amount of charge
+    def setInvoiceGroup(self,v):
+        self.invoice_group = v
 
-    tpye : str
-        type of service charge
-        UR:
-            environmental service charge
-            fuel charge
-            drop off
-            pick up
+    def setType(self, v):
+        self.type = v
 
-        Sunbelt?
+    def getId(self):
+        return self.id
 
-    InvoiceMap : dict
-        reference to invoice_data
+    def getName(self):
+        return self.name
 
-    """
-    def __init__(self):
-        self.total = 0
-        self.InvoiceMap = {}
+    def getFirstDate(self):
+        return self.first_date
 
-    def addCharge(self, v):
-        self.total += v
+    def getLastDate(self):
+        return self.last_date
 
-    def addInvoice(self, k, v):
-        self.InvoiceMap[k] = v
+    def getAmount(self):
+        return self.amount
+
+    def getInvoiceGroup(self):
+        return self.invoice_group
+
+    def getType(self):
+        return self.type
