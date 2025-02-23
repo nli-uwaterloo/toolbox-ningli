@@ -5,9 +5,7 @@ from bokeh.palettes import Category20
 from bokeh.transform import factor_cmap
 import os
 from datetime import timedelta
-# Load the dataset from the uploaded file
 
-# Modified plot function to work with the new out.csv
 def plot(dir, fname):
     olddir = os.getcwd()
     os.chdir(dir)

@@ -7,12 +7,24 @@ import copy
 from datetime import datetime
 import csv
 
-def read_sunbelt(dir, invoice_data):
-    fname = '155311570-1.pdf'  # sunbelt
-    read_invoice_sunbelt(dir, fname, invoice_data)
-
 def read_invoice_sunbelt(dir,fname, invoice_data):
-    i = 0
+    # Extract text from the PDF
+    invoice_data = ur.extract_text_from_pdf_sunbelt(dir, fname, invoice_data)
+    return invoice_data
+
+def read_invoice_ur(dir, fname, invoice_data):
+    # Extract text from the PDF
+    invoice_data = ur.extract_text_from_pdf_ur(dir, fname, invoice_data)
+    return invoice_data
+
+def read_sunbelt(dir, invoice_data):
+    filenames = list_files_in_directory(dir)
+    invoices = {}
+    for fname in filenames:
+        invoice_data = read_invoice_sunbelt(dir, fname, invoice_data)
+        invoice_number = invoice_data["Invoice Number"]
+        invoices[invoice_number] = copy.deepcopy(invoice_data)
+    return invoices
 
 def read_ur(dir, invoice_data):
     filenames = list_files_in_directory(dir)
@@ -21,14 +33,7 @@ def read_ur(dir, invoice_data):
         invoice_data = read_invoice_ur(dir, fname, invoice_data)
         invoice_number = invoice_data["Invoice Number"]
         invoices[invoice_number] = copy.deepcopy(invoice_data)
-        i = 0
-        # invoices[invoice_number]['Rental Items'] = invoice_data['Rental Items']
     return invoices
-
-def read_invoice_ur(dir, fname, invoice_data):
-    # Extract text from the PDF
-    invoice_data = ur.extract_text_from_pdf(dir, fname, invoice_data)
-    return invoice_data
 
 def list_files_in_directory(dir):
     try:
@@ -75,7 +80,10 @@ def create_class(invoices):
         invoice.setDateout(invoice_data['Date Out'])
         # update charges
         tax += invoice_data['Tax']
-        total += float(invoice_data['Invoice Amount'].replace(',', ''))
+        if isinstance(invoice_data['Invoice Amount'], float):
+            total += invoice_data['Invoice Amount']
+        else:
+            total += float(invoice_data['Invoice Amount'].replace(',', ''))
 
         # Determine Environmental Service, Fuel, and Pickup/Drop off charge
         for i in invoice_data["Sales/Miscellaneous Items"]:
@@ -243,19 +251,15 @@ invoice_data = {
     "Tax": 0,
     "Total Amount": 0,
     #"Project Name": None,
-    #"Project Address": None,
-    #"Job Contact": None,
 }
 
 in_dir = r'C:\Users\ginse\OneDrive\Documents\Tools\toolbox-ningli\extract-plot\ur_invoice_all'
+in_dir = r'C:\Users\ginse\OneDrive\Documents\Tools\toolbox-ningli\extract-plot\sunbelt_invoice_all'
 out_dir = r"C:\Users\ginse\OneDrive\Documents\Tools\toolbox-ningli\extract-plot\output"
-fname = "236899786-005.PDF" #ur
-#fname = '155311570-1.pdf' #sunbelt
 invoiceGroupMap = {}
 equipmentMap = {} # key: id, val: Equipment
-invoices_ur = read_ur(in_dir, invoice_data)
-# read_sunbelt(dir, invoice_data)
-equipmentMap = create_class(invoices_ur)
+#invoices = read_ur(in_dir, invoice_data)
+invoices = read_sunbelt(in_dir, invoice_data)
+equipmentMap = create_class(invoices)
 write_csv(out_dir,"out.csv", equipmentMap)
-#group = rc.InvoiceGroup(invoice_data["Invoice Group"])
 i = 0

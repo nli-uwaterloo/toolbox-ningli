@@ -1,75 +1,94 @@
-import os
-import fitz  # PyMuPDF
 import re
 
 
-def extract_text_from_pdf(pdf_path):
-    """Extracts text from all pages of a given PDF file."""
-    doc = fitz.open(pdf_path)
-    text = "\n".join([page.get_text("text") for page in doc])
-    return text
+def extract_rental_items_sunbelt(text, invoice_data):
+    lines = text.splitlines()
+    equipment_items = []
+    current_item = {}
 
-
-def extract_equipment_details(pattern, text):
-    """Extracts details of equipment based on regex pattern."""
-    match = pattern.search(text)
-    if match:
-        equipment_data = {
-            "quantity": int(match.group(1)),
-            "description": match.group(2),
-            "daily_rate": float(match.group(3).replace(",", "")),
-            "weekly_rate": float(match.group(4).replace(",", "")),
-            "four_week_rate": float(match.group(5).replace(",", "")),
-            "amount_charged": float(match.group(6).replace(",", ""))
-        }
-
-        # Extract Make, Model, and Serial Number
-        make_model_serial_pattern = re.search(
-            rf"Make:\s+(\w+)\s+Model:\s+([\w\d-]+)\s+Serial:\s+([\w\d-]+)", text
+    for i, line in enumerate(lines):
+        # Match the main pattern for Rental Items
+        match = re.search(
+            r"(\d+\.\d{2})\s+([A-Z0-9\-\'\s]+?)\s+(\d+\.\d{2}|N/C)\s+(\d+\.\d{2}|N/C)\s+(\d+\.\d{2}|N/C)\s+(\d+\.\d{2}|N/C)\s+(\d+\.\d{2}|N/C)\s*(\d+\.\d{2}|N/C)?$",
+            line, re.IGNORECASE
         )
 
-        if make_model_serial_pattern:
-            equipment_data["make"] = make_model_serial_pattern.group(1)
-            equipment_data["model"] = make_model_serial_pattern.group(2)
-            equipment_data["serial"] = make_model_serial_pattern.group(3)
+        if match:
+            # Create a rental item dictionary
+            current_item = {
+                "Quantity": match.group(1),
+                "Description": match.group(2).strip(),
+                "Min": match.group(3) if match.group(3) else "N/A",
+                "Daily Rate": match.group(4) if match.group(4) else "N/A",
+                "Weekly Rate": match.group(5) if match.group(5) else "N/A",
+                "Four Week Rate": match.group(6) if match.group(6) else "N/A",
+                "Rate": match.group(7) if match.group(7) else "N/A",
+                "Amount": match.group(8) if match.group(8) else "N/A",
+                "Equipment ID": None  # Will be populated from next lines
+            }
 
-        return equipment_data
-    return None
+            # Check the next line for Equipment ID
+            if i + 1 < len(lines):
+                next_line = lines[i + 1]
+                equipment_id_match = re.search(r"(\b[A-Z]{2}\d{4,}\b|\b\d{7,}\b)", next_line)
+                if equipment_id_match:
+                    current_item["Equipment ID"] = equipment_id_match.group(1)
+
+            equipment_items.append(current_item)
+
+    # Add to invoice_data
+    invoice_data["Rental Items"] = equipment_items
 
 
-# Define regex patterns for Excavator and VIB Plate
-excavator_pattern = re.compile(
-    r"(\d+)\s+[\d-]+\s+EXCAVATOR\s+(\d+#\s+REDUCED\s+TAIL\s+SWING)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)",
-    re.IGNORECASE
-)
+# Example Text
+text = """
+. QTY EQUIPMENT # Min Day Week 4 Week Amount
+.
+1.00 10K 55' CAB TELEHANDLER FORKLIFT 680.00 680.00 1685.00 3200.00 3200.00
+IA2986 Make: SKYJACK Model: SJ1056TH Ser #: 87310272
+HR OUT: 1907.753 HR IN: 1911.694 TOTAL: 3.941
+#6' forks
+long forks on it
+1.00 LONG FORKS SET OF 2 - TELEHANDLERS N/C
+Rental Sub-total: 3200.00
 
-vib_plate_pattern = re.compile(
-    r"(\d+)\s+[\d-]+\s+VIB\s+PLATE\s+MEDIUM\s+(\d+-\d+#\s+IMPACT)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)",
-    re.IGNORECASE
-)
+. QTY EQUIPMENT # Min Day Week 4 Week Amount
+.
+1.00 2800-3200LB TRACK SKIDSTEER CAB 525.00 525.00 1525.00 3345.00 3345.00
+10018499 Make: BOBCAT Model: T740 Ser #: B3CA14001
+HR OUT: 2653.700 HR IN: TOTAL: 2653.700
+#IF ENCLOSED MUST HAVE AC, CAN BE OPEN
+1.00 PALLET FORKS - LARGE SKID 45.00 45.00 175.00 350.00 350.00
+10640717 Make: ARROW Model: 503150-4-48-2 Ser #: 82707
+1.00 SKIDSTEER LOADER BUCKET N/C
+# TOOTH BUCKET
+Rental Sub-total: 3695.00
 
-# Path to the PDF file (update this with your actual file path)
-pdf_path = "invoice.pdf"
-dir = r'C:\Users\ginse\OneDrive\Documents\Tools\toolbox-ningli\extract-plot\ur_invoice_dec2024'
-fname = "236784258-006.PDF"
-fname = r'236844732-006.PDF'
+. QTY EQUIPMENT # Min Day Week 4 Week Amount
+.
+1.00 UTILITY VEHICLE 4 SEAT 4WD GAS 265.00 265.00 325.00 680.00 680.00
+10658460 Make: KAWASAKI Model: 4010 TRANS Ser #: JK1ATCB13PB502450
+HR OUT: 335.000 HR IN: 335.041 TOTAL: .041
+# DIESEL PREFFER IF AVAILABLE
+1.00 UTILITY VEHICLE 4 SEAT 4WD GAS 265.00 265.00 325.00 680.00 680.00
+10678386 Make: POLARIS Model: D22P4E99B4 Ser #: 4XAP4E992N8129861
+HR OUT: 1666.000 HR IN: TOTAL: 1666.000
+# DIESEL PREFFER IF AVAILABLE
+1.00 UTILITY VEHICLE 4 SEAT 4WD GAS CAB 265.00 265.00 325.00 680.00 680.00
+11032228 Make: KAWASAKI Model: 4010 TRANS Ser #: JK1ATCD17PB501945
+HR OUT: 89.000 HR IN: 90.581 TOTAL: 1.581
+Rental Sub-total: 2040.00
+"""
 
-os.chdir(dir)
+# Initialize Invoice Data Dictionary
+invoice_data = {
+    "Rental Items": []
+}
 
-# Extract text from the PDF
-invoice_text = extract_text_from_pdf(fname)
+# Extract Rental Items
+extract_rental_items_sunbelt(text, invoice_data)
 
-# Extract details for both equipment
-excavator_details = extract_equipment_details(excavator_pattern, invoice_text)
-vib_plate_details = extract_equipment_details(vib_plate_pattern, invoice_text)
-
-# Print results
-if excavator_details:
-    print("Excavator Details:", excavator_details)
-else:
-    print("Excavator not found.")
-
-if vib_plate_details:
-    print("VIB Plate Details:", vib_plate_details)
-else:
-    print("VIB Plate not found.")
+# Display Results
+print("\nRENTAL ITEMS:")
+for item in invoice_data["Rental Items"]:
+    print(item)
